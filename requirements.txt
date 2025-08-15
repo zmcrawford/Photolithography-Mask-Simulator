@@ -1,0 +1,7 @@
+Flask
+request
+base64
+io
+PIL
+cffi
+numpy

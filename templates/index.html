@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+    <head>
+        <link href="/static/styles.css" rel="stylesheet">
+        <title>CS50 Final Project</title>
+        <link rel="icon" type="image/x-icon" href="/static/phy-favicon.png">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+        <!-- JS script to reset params on refresh, and initialize canvases-->
+        <script>
+            function clearCanvas(canvas) {
+                let context = canvas.getContext("2d")
+                context.fillStyle = 'black'
+                context.fillRect(0, 0, canvas.width, canvas.height)
+            }
+
+
+            window.onload = function() {
+                document.getElementById('wvslider').value = 13.5;
+                document.getElementById('naslider').value = 0.4;
+                document.getElementById('kslider').value = 0.5;
+                document.getElementById('method').selectedIndex = 0;
+                document.getElementById('toggle').checked = false;
+                clearCanvas(document.getElementById('inputCanvas'));
+                clearCanvas(document.getElementById('outputCanvas'));
+                updatecd();
+                // Trigger update on slider change
+            };
+            // update critical dimension calculation
+            async function updatecd() {
+                const cdtext = document.getElementById('cd-text');
+                let wavelength = document.getElementById('wvslider').value;
+                let na = document.getElementById('naslider').value;
+                let k = document.getElementById('kslider').value;
+                const cd = k * wavelength / (na);
+                cdtext.textContent = cd.toFixed(1) + " nm";
+            }
+            // send vals to flask and get json back
+            async function sendVals() {
+                updatecd()
+                const input_data = document.getElementById('inputCanvas').toDataURL("image/png");
+                const vals = {
+                    image: input_data,
+                    wavelength: document.getElementById('wvslider').value,
+                    NA: document.getElementById('naslider').value,
+                    k1: document.getElementById('kslider').value,
+                    method: document.getElementById('method').value
+                }
+                let response = await fetch('/simulate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(vals)
+                });
+                let data = await response.json();
+
+                let img_base64 = data.image;
+
+                // Draw it on the output canvas
+                let oC = document.getElementById('outputCanvas');
+                let ctx = oC.getContext('2d');
+                let img = new Image();
+                img.onload = function() {
+                    ctx.clearRect(0, 0, oC.width, oC.height);
+                    ctx.drawImage(img, 0, 0, oC.width, oC.height);
+                };
+                img.src = img_base64;
+                return;
+            };
+        </script>
+    </head>
+
+    <body>
+        <h1 class="text-center mb-4">Photolithography Mask Simulator</h1>
+        <hr>
+        <div class="ps-3 row padded-right">
+            <div class="col-md-4 text-center">
+                <p class="fw-bold">Input Mask</p>
+                <canvas id="inputCanvas" name="inputCanvas" class="w-100 border rounded shadow" width="500" height="500" style="border:1px solid #000000;">
+                </canvas>
+                <button id="reset" class="btn btn-warning mt-2">Reset Canvas</button>
+            </div>
+            <div class="col-md-4 text-center">
+                <p class="fw-bold">Simulated Output</p>
+                <canvas id="outputCanvas" name="outputCanvas" class="w-100 border rounded shadow" width="500" height="500" style="border:1px solid #000000;">
+                </canvas>
+                <button id="download" class="btn btn-success mt-2">Download Image</button>
+            </div>
+            <div class="col-md-4 text-center">
+                <p class="fw-bold text-center">Parameters and Settings</p>
+
+                <div class="w-100 rounded shadow settings-box">
+                    <select name="method" class="selectpicker" id="method">
+                        <option disabled selected value="default">Select a PSF Method</option>
+                        <option value="gauss"> Gaussian </option>
+                        <option value="airy"> Airy </option>
+                    </select>
+
+
+                    <form id="wavelength">
+                        <p>Wavelength: <output id="wvvalue" name="wvvalue" for="wvslider">13.5</output> nm</p>
+                        <input type="range" min="13.5" max="249" step="1.5" value="13.5" class="slider" id="wvslider" name="wvslider">
+                    </form>
+
+                    <form id="na">
+                        <p>NA: <output id="navalue" name="navalue" for="naslider">0.4</output>nm<sup>-1</sup></p>
+                        <input type="range" min="0.33" max="1.0" value="0.4" step="0.01" class="slider" id="naslider" name="naslider">
+                    </form>
+
+                    <form id="k">
+                        <p>k<sub>1</sub>: <output id="kvalue" name="kvalue" for="kslider">0.5</output></p>
+                        <input type="range" min="0.25" max="1.0" value="0.5" step="0.01" class="slider" id="kslider" name="kslider">
+                    </form>
+
+
+                    <!--Toggle adapted from (https://stackoverflow.com/questions/41129060/centering-text-on-either-side-of-a-toggle)-->
+                    <div id="div-yesnotoggle">
+                        <div id="div-notext">
+                            Manual
+                        </div>
+                        <div id="div-switch">
+                            <label class="switch">
+                                <input type="checkbox" name="toggle" id="toggle">
+                                <div class="slider-switch round"></div>
+                            </label>
+                        </div>
+                        <div id="div-yestext">
+                            Automatic
+                        </div>
+                    </div>
+
+                    <button type="button" name="submit" id="submit">Calculate</button>
+                    <p>Note: Use Manual Mode for Airy Method</p>
+                </div>
+
+
+            </div>
+        </div>
+
+        <hr>
+        <div id="info-box" class="text-center mt-3">
+            <p>Critical Dimension = k&lambda;/NA = <span id="cd-text">N/A</span></p>
+            <p id="mask-text">Mask size: 1 &mu;m &times; 1 &mu;m</p>
+        </div>
+        <!-- JS scripts to update labels for sliders-->
+        <script>
+            let toggle = document.getElementById('toggle')
+            toggle.addEventListener('change', function() {
+                sendVals();
+            });
+            let waveform = document.querySelector('#wavelength')
+            wvvalue = waveform.elements["wvvalue"];
+            wvslider = waveform.elements["wvslider"];
+            waveform.addEventListener('input', function() {
+                wvvalue.value = wvslider.valueAsNumber;
+                if (toggle.checked) {
+                    sendVals()
+                }
+            });
+            let naform = document.querySelector('#na')
+            navalue = naform.elements["navalue"];
+            naslider = naform.elements["naslider"];
+            naform.addEventListener('input', function() {
+                navalue.value = naslider.valueAsNumber;
+                if (toggle.checked) {
+                    sendVals()
+                }
+            });
+            let kform = document.querySelector('#k')
+            kvalue = kform.elements["kvalue"];
+            kslider = kform.elements["kslider"];
+            kform.addEventListener('input', function() {
+                kvalue.value = kslider.valueAsNumber;
+                if (toggle.checked) {
+                    sendVals()
+                }
+
+            });
+
+            let submit_b = document.getElementById('submit')
+            submit_b.addEventListener('click', function() {
+                sendVals();
+            });
+        </script>
+
+        <!-- JS to interactively draw on canvas and reset/download-->
+        <script>
+            const iC = document.querySelector('#inputCanvas')
+            const oC = document.querySelector('#outputCanvas')
+            const iCcontext = iC.getContext("2d")
+            const oCcontext = oC.getContext("2d")
+            const reset = document.querySelector('#reset')
+            const download = document.querySelector('#download')
+            // central idea: have a bool modified by clicks to figure out if drawing should happen
+            // adapted from mozilla documentation on mousemove (https://developer.mozilla.org/en-US/docs/Web/API/Element/mousemove_event)
+            let draw = false;
+            iC.addEventListener('mousedown', function() {
+                draw = true;
+            });
+            iC.addEventListener('mouseup', function() {
+                draw = false;
+            });
+            // if mouse moves while draw is true, we should draw px
+            iC.addEventListener('mousemove', function(event) {
+                if (!draw) {
+                    return false;
+                }
+                const rect = iC.getBoundingClientRect();
+                // found that cursor and brush line up at (0,0) but not at (500,500), apply scalefactor
+                //     to map to canvas pixels better
+
+                const sfx = iC.width / rect.width;
+                const sfy = iC.height / rect.height;
+                const brush_size = 30;
+
+                let x = (event.clientX - rect.left) * sfx;
+                let y = (event.clientY - rect.top) * sfy;
+                iCcontext.fillStyle = 'white';
+                iCcontext.fillRect(x, y, brush_size, brush_size);
+
+            });
+
+            reset.addEventListener('click', function() {
+                clearCanvas(iC);
+                clearCanvas(oC);
+            });
+
+            download.addEventListener('click', function() {
+                //create virtual image url
+                // adapted from Mozilla html documentation (https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/toDataURL)
+                const link = document.createElement('a');
+                link.download = 'simulated_output.png';
+                link.href = oC.toDataURL('image/png');
+                link.click();
+            });
+        </script>
+
+    </body>
+
+</html>
